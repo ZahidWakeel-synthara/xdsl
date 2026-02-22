@@ -845,7 +845,56 @@ class FileLineColLoc(ParametrizedAttribute, BuiltinAttribute):
             printer.print_int(self.column.data)
 
 
-LocationAttr: TypeAlias = UnknownLoc | FileLineColLoc
+@irdl_attr_definition
+class NameLoc(ParametrizedAttribute, BuiltinAttribute):
+    """
+    Syntax:
+
+    ```
+    name-location ::= string-literal `(` location `)`
+    ```
+
+    A name location associates a textual name with a child location.
+
+    Example:
+
+    ```mlir
+    loc("main"(loc("model.mlir":0:0)))
+    ```
+    """
+
+    name = "name_loc"
+
+    location_name: StringAttr
+    child_loc: Attribute
+
+    def __init__(self, location_name: str | StringAttr, child_loc: Attribute):
+        if isinstance(location_name, str):
+            location_name = StringAttr(location_name)
+        super().__init__(location_name, child_loc)
+
+    def verify(self) -> None:
+        if not isinstance(
+            self.child_loc,
+            (
+                UnknownLoc,
+                FileLineColLoc,
+                NameLoc,
+            ),
+        ):
+            raise VerifyException(
+                f"Expected location attribute as NameLoc child, got {self.child_loc}"
+            )
+
+    def print_builtin(self, printer: Printer) -> None:
+        printer.print_string("loc")
+        with printer.in_parens():
+            printer.print_string_literal(self.location_name.data)
+            with printer.in_parens():
+                printer.print_attribute(self.child_loc)
+
+
+LocationAttr: TypeAlias = UnknownLoc | FileLineColLoc | NameLoc
 
 
 @irdl_attr_definition

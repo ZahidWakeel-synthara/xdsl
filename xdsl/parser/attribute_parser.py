@@ -43,6 +43,7 @@ from xdsl.dialects.builtin import (
     LocationAttr,
     MemRefLayoutAttr,
     MemRefType,
+    NameLoc,
     NoneAttr,
     NoneType,
     OpaqueAttr,
@@ -1300,23 +1301,56 @@ class AttrParser(BaseParser):
     def parse_optional_location(self) -> LocationAttr | None:
         """
         Parse a location attribute, if present.
-          location ::= `loc` `(` `unknown` `)`
+          location ::= `loc` `(` location-instance `)`
+
+          location-instance ::= `unknown`
+                              | string-literal `:` integer-literal `:` integer-literal
+                              | string-literal `(` location-instance `)`
+                              | string-literal
+                              | attribute-alias
         """
         if not self.parse_optional_characters("loc"):
             return None
 
         with self.in_parens():
-            if self.parse_optional_keyword("unknown"):
-                return UnknownLoc()
+            return self._parse_location_instance()
 
-            if (filename := self.parse_optional_str_literal()) is not None:
-                self.parse_punctuation(":")
+    def _parse_location_instance(self) -> LocationAttr:
+        if self.parse_optional_keyword("unknown"):
+            return UnknownLoc()
+
+        if (name := self.parse_optional_str_literal()) is not None:
+            if self.parse_optional_punctuation(":") is not None:
                 line = self.parse_integer(False, False)
                 self.parse_punctuation(":")
                 col = self.parse_integer(False, False)
-                return FileLineColLoc(StringAttr(filename), IntAttr(line), IntAttr(col))
+                return FileLineColLoc(StringAttr(name), IntAttr(line), IntAttr(col))
 
-            self.raise_error("Unexpected location syntax.")
+            if self.parse_optional_punctuation("(") is not None:
+                if self.parse_optional_characters("loc"):
+                    with self.in_parens():
+                        child_loc = self._parse_location_instance()
+                else:
+                    child_attr = self.parse_attribute()
+                    if not isa(child_attr, LocationAttr):
+                        self.raise_error("Expected location alias.")
+                    child_loc = child_attr
+                self.parse_punctuation(")")
+                return NameLoc(StringAttr(name), child_loc)
+
+            # MLIR shorthand: loc("name") is equivalent to NameLoc("name", unknown)
+            if self._current_token.kind == MLIRTokenKind.R_PAREN:
+                return NameLoc(StringAttr(name), UnknownLoc())
+
+            self.raise_error("Expected ':', '(', or ')' after location name.")
+
+        if self._current_token.kind == MLIRTokenKind.HASH_IDENT:
+            attr = self.parse_attribute()
+            if isa(attr, LocationAttr):
+                return attr
+            self.raise_error("Expected location alias.")
+
+        self.raise_error("Unexpected location syntax.")
 
     def parse_optional_builtin_int_or_float_attr(
         self,

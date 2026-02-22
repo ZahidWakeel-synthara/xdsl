@@ -17,6 +17,7 @@ from xdsl.dialects.builtin import (
     IntAttr,
     IntegerAttr,
     IntegerType,
+    NameLoc,
     StringAttr,
     SymbolRefAttr,
     UnknownLoc,
@@ -975,6 +976,25 @@ def test_parse_location():
 
     attr = Parser(ctx, 'loc("one":2:3)').parse_optional_location()
     assert attr == FileLineColLoc(StringAttr("one"), IntAttr(2), IntAttr(3))
+
+    attr = Parser(ctx, 'loc("main"(loc("one":2:3)))').parse_optional_location()
+    assert attr == NameLoc(
+        StringAttr("main"),
+        FileLineColLoc(StringAttr("one"), IntAttr(2), IntAttr(3)),
+    )
+
+    attr = Parser(ctx, 'loc("main")').parse_optional_location()
+    assert attr == NameLoc(StringAttr("main"), UnknownLoc())
+
+    parser = Parser(ctx, 'loc("main"(#loc))')
+    parser.attribute_aliases["#loc"] = FileLineColLoc(
+        StringAttr("one"), IntAttr(2), IntAttr(3)
+    )
+    attr = parser.parse_optional_location()
+    assert attr == NameLoc(
+        StringAttr("main"),
+        FileLineColLoc(StringAttr("one"), IntAttr(2), IntAttr(3)),
+    )
 
     with pytest.raises(ParseError, match="Unexpected location syntax."):
         Parser(ctx, "loc(unexpected)").parse_optional_location()

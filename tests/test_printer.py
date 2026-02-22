@@ -20,6 +20,7 @@ from xdsl.dialects.builtin import (
     IntAttr,
     IntegerType,
     ModuleOp,
+    NameLoc,
     Signedness,
     StringAttr,
     SymbolRefAttr,
@@ -86,6 +87,20 @@ def test_print_op_location():
     op.location = FileLineColLoc(StringAttr("model.mlir"), IntAttr(7), IntAttr(9))
     expected_explicit = """%0 = "test.op"() : () -> i32 loc("model.mlir":7:9)"""
     assert_print_op(op, expected_explicit, print_debuginfo=True)
+
+
+def test_print_name_loc_attr():
+    """Test NameLoc printing."""
+    loc = NameLoc(
+        StringAttr("main"),
+        FileLineColLoc(StringAttr("one"), IntAttr(2), IntAttr(3)),
+    )
+
+    with StringIO() as io:
+        Printer(io).print_attribute(loc)
+        text = io.getvalue()
+
+    assert text == 'loc("main"(loc("one":2:3)))'
 
 
 @irdl_op_definition
