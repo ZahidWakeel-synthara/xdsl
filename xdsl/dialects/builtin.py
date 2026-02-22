@@ -2146,6 +2146,7 @@ class UnregisteredOp(Operation, ABC):
                 result_types: Sequence[Attribute] = (),
                 properties: Mapping[str, Attribute] = {},
                 attributes: Mapping[str, Attribute] = {},
+                location: Attribute | None = None,
                 successors: Sequence[Block] = (),
                 regions: Sequence[Region] = (),
             ):
@@ -2154,6 +2155,7 @@ class UnregisteredOp(Operation, ABC):
                     result_types=result_types,
                     properties=properties,
                     attributes=attributes,
+                    location=location,
                     successors=successors,
                     regions=regions,
                 )
