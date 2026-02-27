@@ -304,6 +304,16 @@ class Rewriter:
     ):
         """Insert operations at a certain location in a block."""
         ops = (op_or_ops,) if isinstance(op_or_ops, Operation) else op_or_ops
+        reference_op = (
+            insertion_point.insert_before
+            if insertion_point.insert_before is not None
+            else insertion_point.block.last_op
+        )
+        if reference_op is not None:
+            for op in ops:
+                if Rewriter.is_implicit_location(op.location):
+                    op.location = reference_op.location
+
         if insertion_point.insert_before is not None:
             insertion_point.block.insert_ops_before(ops, insertion_point.insert_before)
         else:

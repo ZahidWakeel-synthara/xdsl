@@ -224,6 +224,49 @@ def test_replace_op_location_behavior(
     rewrite_and_compare(prog, expected, transformation)
 
 
+@pytest.mark.parametrize(
+    "explicit_new_location, expected_location",
+    [
+        (False, FileLineColLoc(StringAttr("source.mlir"), IntAttr(7), IntAttr(9))),
+        (True, FileLineColLoc(StringAttr("explicit.mlir"), IntAttr(3), IntAttr(5))),
+    ],
+)
+def test_insert_op_location_behavior(
+    explicit_new_location: bool, expected_location: FileLineColLoc
+):
+    prog = """\
+"builtin.module"() ({
+  %0 = "arith.constant"() <{value = 42 : i32}> : () -> i32
+}) : () -> ()
+"""
+
+    expected = """\
+"builtin.module"() ({
+  %0 = "test.op"() : () -> i32
+  %1 = "arith.constant"() <{value = 42 : i32}> : () -> i32
+}) : () -> ()
+"""
+
+    def transformation(module: ModuleOp, rewriter: Rewriter) -> None:
+        old_op = module.ops.first
+        assert old_op is not None
+        old_op.location = FileLineColLoc(
+            StringAttr("source.mlir"), IntAttr(7), IntAttr(9)
+        )
+
+        new_op = test.TestOp(result_types=(i32,))
+        if explicit_new_location:
+            new_op.location = FileLineColLoc(
+                StringAttr("explicit.mlir"), IntAttr(3), IntAttr(5)
+            )
+
+        rewriter.insert_op(new_op, InsertPoint.before(old_op))
+
+        assert new_op.location == expected_location
+
+    rewrite_and_compare(prog, expected, transformation)
+
+
 def test_inline_block_at_end():
     """Test the inlining of a block at end."""
 
