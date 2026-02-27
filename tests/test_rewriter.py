@@ -6,7 +6,17 @@ import pytest
 from xdsl.context import Context
 from xdsl.dialects import test
 from xdsl.dialects.arith import AddiOp, Arith, ConstantOp
-from xdsl.dialects.builtin import Builtin, ModuleOp, f32, f64, i32, i64
+from xdsl.dialects.builtin import (
+    Builtin,
+    FileLineColLoc,
+    IntAttr,
+    ModuleOp,
+    StringAttr,
+    f32,
+    f64,
+    i32,
+    i64,
+)
 from xdsl.ir import Block, Region
 from xdsl.parser import Parser
 from xdsl.printer import Printer
@@ -167,6 +177,49 @@ def test_replace_op_name_hints():
         new_results = [op.results[0] for op in new_ops]
 
         rewriter.replace_op(old_op, new_ops, new_results)
+
+    rewrite_and_compare(prog, expected, transformation)
+
+
+@pytest.mark.parametrize(
+    "explicit_new_location, expected_location",
+    [
+        (False, FileLineColLoc(StringAttr("source.mlir"), IntAttr(7), IntAttr(9))),
+        (True, FileLineColLoc(StringAttr("explicit.mlir"), IntAttr(3), IntAttr(5))),
+    ],
+)
+def test_replace_op_location_behavior(
+    explicit_new_location: bool, expected_location: FileLineColLoc
+):
+    prog = """\
+"builtin.module"() ({
+  %0 = "arith.constant"() <{value = 42 : i32}> : () -> i32
+}) : () -> ()
+"""
+
+    expected = """\
+"builtin.module"() ({
+  %0 = "test.op"() : () -> i32
+}) : () -> ()
+"""
+
+    def transformation(module: ModuleOp, rewriter: Rewriter) -> None:
+        old_op = module.ops.first
+        assert old_op is not None
+
+        old_op.location = FileLineColLoc(
+            StringAttr("source.mlir"), IntAttr(7), IntAttr(9)
+        )
+
+        new_op = test.TestOp(result_types=(i32,))
+        if explicit_new_location:
+            new_op.location = FileLineColLoc(
+                StringAttr("explicit.mlir"), IntAttr(3), IntAttr(5)
+            )
+
+        rewriter.replace_op(old_op, new_op)
+
+        assert new_op.location == expected_location
 
     rewrite_and_compare(prog, expected, transformation)
 
