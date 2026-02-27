@@ -186,6 +186,53 @@ def test_pattern_rewriter_replace_op_location_behavior(
     assert new_op.location == expected_location
 
 
+@pytest.mark.parametrize(
+    "explicit_new_location, expected_location",
+    [
+        (False, FileLineColLoc(StringAttr("source.mlir"), IntAttr(2), IntAttr(4))),
+        (True, FileLineColLoc(StringAttr("explicit.mlir"), IntAttr(8), IntAttr(13))),
+    ],
+)
+def test_pattern_rewriter_insert_op_location_behavior(
+    explicit_new_location: bool, expected_location: FileLineColLoc
+):
+    ctx = Context(allow_unregistered=True)
+    ctx.load_dialect(Builtin)
+    ctx.load_dialect(Arith)
+    ctx.load_dialect(test.Test)
+
+    module = Parser(
+        ctx,
+        '"builtin.module"() ({\n'
+        '  %0 = "arith.constant"() <{value = 42 : i32}> : () -> i32\n'
+        "}) : () -> ()",
+    ).parse_module()
+
+    old_op = module.ops.first
+    assert isinstance(old_op, ConstantOp)
+    old_op.location = FileLineColLoc(StringAttr("source.mlir"), IntAttr(2), IntAttr(4))
+
+    class InsertBeforeConst(RewritePattern):
+        @op_type_rewrite_pattern
+        def match_and_rewrite(self, op: ConstantOp, rewriter: PatternRewriter):
+            new_op = test.TestOp(result_types=(i32,))
+            if explicit_new_location:
+                new_op.location = FileLineColLoc(
+                    StringAttr("explicit.mlir"), IntAttr(8), IntAttr(13)
+                )
+            rewriter.insert_op(new_op, InsertPoint.before(op))
+
+    did_rewrite = PatternRewriteWalker(
+        InsertBeforeConst(),
+        apply_recursively=False,
+    ).rewrite_module(module)
+    assert did_rewrite
+
+    new_op = module.ops.first
+    assert isinstance(new_op, test.TestOp)
+    assert new_op.location == expected_location
+
+
 def test_non_recursive_rewrite_reversed():
     """Test a simple non-recursive rewrite with reverse walk order."""
 
