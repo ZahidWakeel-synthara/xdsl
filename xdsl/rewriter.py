@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 
+from xdsl.dialects.builtin import LocationAttr, UnknownLoc
 from xdsl.ir import (
     Attribute,
     Block,
@@ -119,6 +120,13 @@ class BlockInsertPoint:
 
 class Rewriter:
     @staticmethod
+    def is_implicit_location(location: LocationAttr | None) -> bool:
+        """
+        Return True if a location should be treated as unset/default.
+        """
+        return location is None or isinstance(location, UnknownLoc)
+
+    @staticmethod
     def erase_op(op: Operation, safe_erase: bool = True):
         """
         Erase an operation.
@@ -160,6 +168,12 @@ class Rewriter:
             raise ValueError(
                 f"Expected {len(op.results)} new results, but got {len(new_results)}"
             )
+
+        # Propagate the replaced op location to replacement ops that did not
+        # receive an explicit location.
+        for new_op in new_ops:
+            if Rewriter.is_implicit_location(new_op.location):
+                new_op.location = op.location
 
         for old_result, new_result in zip(op.results, new_results):
             if new_result is None:

@@ -228,6 +228,12 @@ class PatternRewriter(Builder, PatternRewriterListener):
         if isinstance(new_ops, Operation):
             new_ops = (new_ops,)
 
+        # Propagate the replaced op location to replacement ops that did not
+        # receive an explicit location.
+        for new_op in new_ops:
+            if Rewriter.is_implicit_location(new_op.location):
+                new_op.location = op.location
+
         # First, insert the new operations before the matched operation
         self.insert_op(new_ops, InsertPoint.before(op))
 
