@@ -386,7 +386,8 @@ def parse_func_op_like(
         else:
             # Parsing order: attrs first, then optional location.
             arg_attr_dict = parser.parse_optional_dictionary_attr_dict()
-            has_loc = parser.parse_optional_location() is not None
+            arg_loc = parser.parse_optional_location()
+            has_loc = arg_loc is not None
 
             # If a location was parsed, reject attrs that appear after it,
             # including empty dictionaries (e.g. `%arg: i32 loc(...) {}`).
@@ -397,6 +398,7 @@ def parse_func_op_like(
                     parser.raise_error(
                         "Expected function argument attributes before location."
                     )
+            arg.location = arg_loc
             ret = (arg, arg_attr_dict)
         return ret
 
