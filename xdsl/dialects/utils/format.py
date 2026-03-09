@@ -235,13 +235,23 @@ def print_func_op_like(
 
     # Non-variadic declaration
     if not body.blocks and not is_variadic:
-        if print_empty_outputs:
+        if arg_attrs is None and res_attrs is None and print_empty_outputs:
             printer.print_attribute(function_type)
         else:
             printer.print_string("(")
-            printer.print_list(function_type.inputs, printer.print_attribute)
+            if arg_attrs is None:
+                printer.print_list(function_type.inputs, printer.print_attribute)
+            else:
+                assert len(function_type.inputs) == len(arg_attrs)
+                printer.print_list(
+                    zip(function_type.inputs, arg_attrs),
+                    lambda t: print_func_input(printer, t[0], t[1]),
+                )
             printer.print_string(")")
-            _print_func_outputs(printer, function_type.outputs.data, res_attrs)
+            if function_type.outputs.data:
+                _print_func_outputs(printer, function_type.outputs.data, res_attrs)
+            elif print_empty_outputs:
+                printer.print_string(" -> ()")
         printer.print_op_attributes(
             attributes, reserved_attr_names=reserved_attr_names, print_keyword=True
         )
@@ -370,7 +380,10 @@ def parse_func_op_like(
     is_variadic = False
 
     def parse_fun_input() -> (
-        Attribute | tuple[Parser.Argument, dict[str, Attribute]] | None
+        Attribute
+        | tuple[Attribute, dict[str, Attribute]]
+        | tuple[Parser.Argument, dict[str, Attribute]]
+        | None
     ):
         def parse_optional_attrs_and_loc() -> dict[str, Attribute]:
             arg_attr_dict = parser.parse_optional_dictionary_attr_dict()
@@ -395,8 +408,7 @@ def parse_func_op_like(
             ret = parser.parse_optional_type()
             if ret is None:
                 parser.raise_error("Expected argument or type")
-            # Declarative args keep only the type and consume attributes and location.
-            parse_optional_attrs_and_loc()
+            ret = (ret, parse_optional_attrs_and_loc())
         else:
             arg_attr_dict = parse_optional_attrs_and_loc()
             ret = (arg, arg_attr_dict)
@@ -407,31 +419,40 @@ def parse_func_op_like(
         parser.Delimiter.PAREN,
         parse_fun_input,
     )
-    args: list[Attribute | tuple[Parser.Argument, dict[str, Attribute]]]
+    args: list[
+        Attribute
+        | tuple[Attribute, dict[str, Attribute]]
+        | tuple[Parser.Argument, dict[str, Attribute]]
+    ]
     args = [arg for arg in args_raw if arg is not None]
 
     entry_arg_tuples: list[tuple[Parser.Argument, dict[str, Attribute]]] = []
-    input_types: list[Attribute] = []
+    decl_arg_tuples: list[tuple[Attribute, dict[str, Attribute]]] = []
     for arg in args:
         if isinstance(arg, Attribute):
-            input_types.append(arg)
+            decl_arg_tuples.append((arg, {}))
+        elif isinstance(arg[0], Attribute):
+            decl_arg_tuples.append(arg)
         else:
             entry_arg_tuples.append(arg)
 
     if entry_arg_tuples:
         # Check consistency (They should be either all named or none)
-        if input_types:
+        if decl_arg_tuples:
             parser.raise_error(
                 "Expected all arguments to be named or all arguments to be unnamed."
             )
 
         entry_args = [arg for arg, _ in entry_arg_tuples]
         input_types = [arg.type for arg in entry_args]
+        arg_attrs_raw = [attrs for _, attrs in entry_arg_tuples]
     else:
         entry_args = None
+        input_types = [arg_type for arg_type, _ in decl_arg_tuples]
+        arg_attrs_raw = [attrs for _, attrs in decl_arg_tuples]
 
-    if any(attrs for _, attrs in entry_arg_tuples):
-        arg_attrs = ArrayAttr(DictionaryAttr(attrs) for _, attrs in entry_arg_tuples)
+    if any(arg_attrs_raw):
+        arg_attrs = ArrayAttr(DictionaryAttr(attrs) for attrs in arg_attrs_raw)
     else:
         arg_attrs = None
 
@@ -486,6 +507,14 @@ def print_func_output(
     printer: Printer, out_type: Attribute, attrs: DictionaryAttr | None
 ):
     printer.print_attribute(out_type)
+    if attrs is not None and attrs.data:
+        printer.print_op_attributes(attrs.data)
+
+
+def print_func_input(
+    printer: Printer, in_type: Attribute, attrs: DictionaryAttr | None
+):
+    printer.print_attribute(in_type)
     if attrs is not None and attrs.data:
         printer.print_op_attributes(attrs.data)
 

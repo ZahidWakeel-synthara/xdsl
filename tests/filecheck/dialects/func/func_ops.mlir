@@ -69,7 +69,7 @@ builtin.module {
   // DEBUGINFO: func.func private @f_decl_loc_only(i32) -> ()
 
   func.func private @f_decl_unnamed_attr_then_loc(i32 {test.arg_name = "x"} loc("model.mlir":7:9))
-  // DEBUGINFO: func.func private @f_decl_unnamed_attr_then_loc(i32) -> ()
+  // DEBUGINFO: func.func private @f_decl_unnamed_attr_then_loc(i32 {test.arg_name = "x"}) -> ()
 
   func.func @multi_return_body(%a : i32) -> (i32, i32) {
     func.return %a, %a : i32, i32
