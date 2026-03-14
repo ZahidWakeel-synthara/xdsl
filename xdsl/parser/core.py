@@ -509,6 +509,14 @@ class Parser(AttrParser):
             self.raise_error("Expected block argument!")
         return arg
 
+    def parse_optional_location_for_argument(self, arg: Argument) -> Argument:
+        """
+        Parse an optional trailing location for an already-parsed block argument and
+        attach it to the argument.
+        """
+        arg.location = self.parse_optional_location()
+        return arg
+
     def parse_optional_region(
         self, arguments: Iterable[Argument] | None = None
     ) -> Region | None:

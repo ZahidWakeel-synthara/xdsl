@@ -1045,6 +1045,18 @@ def test_parse_func_argument_location_is_preserved() -> None:
     assert block.args[1].location == UnknownLoc()
 
 
+def test_parse_optional_location_for_argument() -> None:
+    ctx = Context()
+    ctx.load_dialect(Builtin)
+
+    parser = Parser(ctx, '%arg0: i32 loc("one":2:3)')
+    arg = parser.parse_argument()
+    assert isinstance(arg, Parser.Argument)
+
+    arg = parser.parse_optional_location_for_argument(arg)
+    assert arg.location == FileLineColLoc(StringAttr("one"), IntAttr(2), IntAttr(3))
+
+
 @pytest.mark.parametrize(
     "context_mode,text,location_target,expected_location",
     [

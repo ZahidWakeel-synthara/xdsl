@@ -1790,7 +1790,10 @@ class ReduceOp(IRDLOperation):
             parser.Delimiter.SQUARE, parser.parse_integer
         )
         entry_args = parser.parse_comma_separated_list(
-            parser.Delimiter.PAREN, parser.parse_argument
+            parser.Delimiter.PAREN,
+            lambda: parser.parse_optional_location_for_argument(
+                parser.parse_argument()
+            ),
         )
         region = parser.parse_region(entry_args)
         reduction = cls(
